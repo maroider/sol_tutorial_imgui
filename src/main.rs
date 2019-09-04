@@ -1,5 +1,6 @@
-use std::{cell::RefCell, thread, time::Duration};
+use std::{cell::RefCell, sync::Mutex, thread, time::Duration};
 
+use lazy_static::lazy_static;
 use sdl2::{
     event::Event,
     keyboard::Keycode,
@@ -71,12 +72,13 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-thread_local! {
-    static BACKGROUND_COLOR: RefCell<Color> = RefCell::new(Color::RGB(30, 0, 127));
+lazy_static! {
+    static ref BACKGROUND_COLOR: Mutex<RefCell<Color>> =
+        Mutex::new(RefCell::new(Color::RGB(30, 0, 127)));
 }
 
 fn render<T: RenderTarget>(canvas: &mut Canvas<T>, state: &mut UiState) -> Result<(), String> {
-    BACKGROUND_COLOR.with(|bg_color| canvas.set_draw_color(bg_color.clone().into_inner()));
+    canvas.set_draw_color(BACKGROUND_COLOR.lock().unwrap().clone().into_inner());
     canvas.fill_rect(Rect::new(0, 0, 640, 480))?;
 
     state.prepare();
@@ -85,9 +87,10 @@ fn render<T: RenderTarget>(canvas: &mut Canvas<T>, state: &mut UiState) -> Resul
     state.button(canvas, 2, 150, 50, 64, 48)?;
 
     if state.button(canvas, 3, 50, 150, 64, 48)? {
-        BACKGROUND_COLOR.with(|bg_color| {
-            bg_color.replace(Color::RGB(200, 150, 50));
-        });
+        BACKGROUND_COLOR
+            .lock()
+            .unwrap()
+            .replace(Color::RGB(200, 150, 50));
     }
 
     if state.button(canvas, 4, 150, 150, 64, 48)? {
