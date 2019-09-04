@@ -7,3 +7,4 @@ This repository currenlty contains mostly correct code up to and including chapt
 Currently missing things from previous chapters includes:
  * Selecting a random background color when the third buton is pressed.
  * Variable-range scroll bars
+ * Correct colors in certain places
