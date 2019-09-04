@@ -1,4 +1,4 @@
-use std::{cell::RefCell, sync::Mutex, thread, time::Duration};
+use std::{mem, sync::Mutex, thread, time::Duration};
 
 use lazy_static::lazy_static;
 use sdl2::{
@@ -79,12 +79,14 @@ macro_rules! gen_id {
 }
 
 lazy_static! {
-    static ref BACKGROUND_COLOR: Mutex<RefCell<Color>> =
-        Mutex::new(RefCell::new(Color::RGB(30, 0, 127)));
+    static ref BACKGROUND_COLOR: Mutex<Color> = Mutex::new(Color::RGB(30, 0, 127));
 }
 
+#[allow(clippy::cast_lossless)]
 fn render<T: RenderTarget>(canvas: &mut Canvas<T>, state: &mut UiState) -> Result<(), String> {
-    canvas.set_draw_color(BACKGROUND_COLOR.lock().unwrap().clone().into_inner());
+    let bg_color = &mut BACKGROUND_COLOR.lock().unwrap();
+
+    canvas.set_draw_color(bg_color.clone());
     canvas.fill_rect(Rect::new(0, 0, 640, 480))?;
 
     state.prepare();
@@ -93,14 +95,24 @@ fn render<T: RenderTarget>(canvas: &mut Canvas<T>, state: &mut UiState) -> Resul
     state.button(canvas, gen_id!(0), 150, 50, 64, 48)?;
 
     if state.button(canvas, gen_id!(0), 50, 150, 64, 48)? {
-        BACKGROUND_COLOR
-            .lock()
-            .unwrap()
-            .replace(Color::RGB(200, 150, 50));
+        mem::replace(&mut **bg_color, Color::RGB(200, 150, 50));
     }
 
     if state.button(canvas, gen_id!(0), 150, 150, 64, 48)? {
         panic!();
+    }
+
+    let mut red = bg_color.r as i32;
+    if state.slider(canvas, gen_id!(0), 500, 40, 255, &mut red)? {
+        bg_color.r = red as u8;
+    }
+    let mut green = bg_color.g as i32;
+    if state.slider(canvas, gen_id!(0), 550, 40, 255, &mut green)? {
+        bg_color.g = green as u8;
+    }
+    let mut blue = bg_color.b as i32;
+    if state.slider(canvas, gen_id!(0), 600, 40, 255, &mut blue)? {
+        bg_color.b = blue as u8;
     }
 
     state.finish();
@@ -163,6 +175,56 @@ impl UiState {
         }
 
         Ok(self.mouse_down && self.hot_item == Some(id) && self.active_item == Some(id))
+    }
+
+    #[allow(dead_code)]
+    fn slider<T>(
+        &mut self,
+        canvas: &mut Canvas<T>,
+        id: i32,
+        x: i32,
+        y: i32,
+        max: i32,
+        value: &mut i32,
+    ) -> Result<bool, String>
+    where
+        T: RenderTarget,
+    {
+        let ypos = ((256 - 16) * *value) / max;
+
+        if self.region_hit(x + 8, y + 8, 16, 255) {
+            self.hot_item = Some(id);
+            if self.active_item.is_none() && self.mouse_down {
+                self.active_item = Some(id);
+            }
+        }
+
+        canvas.set_draw_color(Color::RGB(0x77, 0x77, 0x77));
+        canvas.fill_rect(Rect::new(x, y, 32, 256 + 16))?;
+
+        if self.active_item == Some(id) || self.hot_item == Some(id) {
+            canvas.set_draw_color(Color::RGB(0xff, 0xff, 0xff));
+        } else {
+            canvas.set_draw_color(Color::RGB(0xaa, 0xaa, 0xaa));
+        }
+        canvas.fill_rect(Rect::new(x + 8, y + 8 + ypos, 16, 16))?;
+
+        if self.active_item == Some(id) {
+            let mut mouse_pos = self.mouse_y - (y + 8);
+            if mouse_pos < 0 {
+                mouse_pos = 255;
+            }
+            if mouse_pos > 255 {
+                mouse_pos = 255;
+            }
+            let v = (mouse_pos * max) / 255;
+            if v != *value {
+                mem::replace(value, v);
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
     }
 
     fn prepare(&mut self) {
