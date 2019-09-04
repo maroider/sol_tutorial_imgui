@@ -3,12 +3,11 @@ use std::{mem, sync::Mutex, thread, time::Duration};
 use lazy_static::lazy_static;
 use sdl2::{
     event::Event,
-    keyboard::Keycode,
+    keyboard::{Keycode, Mod, LSHIFTMOD, RSHIFTMOD},
     mouse::MouseButton,
     pixels::Color,
     rect::Rect,
     render::{Canvas, RenderTarget},
-
 };
 
 fn main() -> Result<(), String> {
@@ -52,6 +51,12 @@ fn main() -> Result<(), String> {
                     ..
                 } => {
                     ui_state.mouse_down = false;
+                }
+                Event::KeyDown {
+                    keycode, keymod, ..
+                } => {
+                    ui_state.key_entered = keycode;
+                    ui_state.key_mod = Some(keymod);
                 }
                 Event::KeyUp {
                     keycode: Some(Keycode::Escape),
@@ -128,8 +133,13 @@ struct UiState {
     mouse_y: i32,
     mouse_down: bool,
 
+    key_entered: Option<Keycode>,
+    key_mod: Option<Mod>,
+
     hot_item: Option<i32>,
     active_item: Option<i32>,
+    keyboard_item: Option<i32>,
+    last_widget: Option<i32>,
 }
 
 impl UiState {
@@ -159,6 +169,15 @@ impl UiState {
             }
         }
 
+        if self.keyboard_item.is_none() {
+            self.keyboard_item = Some(id);
+        }
+
+        if self.keyboard_item == Some(id) {
+            canvas.set_draw_color(Color::RGB(0xff, 0x00, 0x00));
+            canvas.fill_rect(Rect::new(x - 6, y - 6, width + 20, height + 20))?;
+        }
+
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.fill_rect(Rect::new(x + 8, y + 8, width, height))?;
 
@@ -173,6 +192,26 @@ impl UiState {
             canvas.set_draw_color(Color::RGB(127, 127, 127));
             canvas.fill_rect(Rect::new(x, y, width, height))?;
         }
+
+        if self.keyboard_item == Some(id) {
+            if let (Some(key_entered), Some(key_mod)) = (self.key_entered, self.key_mod) {
+                match key_entered {
+                    Keycode::Tab => {
+                        self.keyboard_item = None;
+                        if key_mod.contains(LSHIFTMOD) || key_mod.contains(RSHIFTMOD) {
+                            self.keyboard_item = self.last_widget;
+                        }
+                        self.key_entered = None;
+                    }
+                    Keycode::Return => {
+                        return Ok(true);
+                    }
+                    _ => {}
+                }
+            }
+
+        }
+        self.last_widget = Some(id);
 
         Ok(self.mouse_down && self.hot_item == Some(id) && self.active_item == Some(id))
     }
@@ -197,6 +236,15 @@ impl UiState {
             if self.active_item.is_none() && self.mouse_down {
                 self.active_item = Some(id);
             }
+        }
+
+        if self.keyboard_item.is_none() {
+            self.keyboard_item = Some(id);
+        }
+
+        if self.keyboard_item == Some(id) {
+            canvas.set_draw_color(Color::RGB(0xff, 0x00, 0x00));
+            canvas.fill_rect(Rect::new(x - 4, y - 4, 40, 280))?;
         }
 
         canvas.set_draw_color(Color::RGB(0x77, 0x77, 0x77));
@@ -224,6 +272,34 @@ impl UiState {
             }
         }
 
+        if self.keyboard_item == Some(id) {
+            if let (Some(key_entered), Some(key_mod)) = (self.key_entered, self.key_mod) {
+                match key_entered {
+                    Keycode::Tab => {
+                        self.keyboard_item = None;
+                        if key_mod.contains(LSHIFTMOD) || key_mod.contains(RSHIFTMOD) {
+                            self.keyboard_item = self.last_widget;
+                        }
+                        self.key_entered = None;
+                    }
+                    Keycode::Up => {
+                        if *value > 0 {
+                            mem::replace(value, *value - 1);
+                            return Ok(true);
+                        }
+                    }
+                    Keycode::Down => {
+                        if *value < max {
+                            mem::replace(value, *value + 1);
+                            return Ok(true);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        self.last_widget = Some(id);
+
         Ok(false)
     }
 
@@ -235,5 +311,11 @@ impl UiState {
         if !self.mouse_down {
             self.active_item = None;
         }
+
+        if self.key_entered == Some(Keycode::Tab) {
+            self.keyboard_item = None;
+        }
+
+        self.key_entered = None;
     }
 }
