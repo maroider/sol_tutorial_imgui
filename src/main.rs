@@ -1,4 +1,4 @@
-use std::{thread, time::Duration};
+use std::{cell::RefCell, thread, time::Duration};
 
 use sdl2::{
     event::Event,
@@ -32,7 +32,7 @@ fn main() -> Result<(), String> {
     loop {
         let mut quit = false;
 
-        render(&mut canvas, &ui_state)?;
+        render(&mut canvas, &mut ui_state)?;
 
         for event in events.poll_iter() {
             match event {
@@ -71,16 +71,30 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-fn render<T: RenderTarget>(canvas: &mut Canvas<T>, state: &UiState) -> Result<(), String> {
-    canvas.set_draw_color(Color::RGB(0, 0, 0));
+thread_local! {
+    static BACKGROUND_COLOR: RefCell<Color> = RefCell::new(Color::RGB(30, 0, 127));
+}
+
+fn render<T: RenderTarget>(canvas: &mut Canvas<T>, state: &mut UiState) -> Result<(), String> {
+    BACKGROUND_COLOR.with(|bg_color| canvas.set_draw_color(bg_color.clone().into_inner()));
     canvas.fill_rect(Rect::new(0, 0, 640, 480))?;
 
-    canvas.set_draw_color(Color::RGB(
-        0,
-        if state.mouse_down { 255 } else { 0 },
-        if !state.mouse_down { 255 } else { 0 },
-    ));
-    canvas.fill_rect(Rect::new(state.mouse_x - 32, state.mouse_y - 24, 64, 48))?;
+    state.prepare();
+
+    state.button(canvas, 1, 50, 50, 64, 48)?;
+    state.button(canvas, 2, 150, 50, 64, 48)?;
+
+    if state.button(canvas, 3, 50, 150, 64, 48)? {
+        BACKGROUND_COLOR.with(|bg_color| {
+            bg_color.replace(Color::RGB(200, 150, 50));
+        });
+    }
+
+    if state.button(canvas, 4, 150, 150, 64, 48)? {
+        panic!();
+    }
+
+    state.finish();
 
     canvas.present();
 
@@ -93,6 +107,62 @@ struct UiState {
     mouse_y: i32,
     mouse_down: bool,
 
-    hot_item: i32,
-    active_item: i32,
+    hot_item: Option<i32>,
+    active_item: Option<i32>,
+}
+
+impl UiState {
+    fn region_hit(&self, x: i32, y: i32, width: u32, height: u32) -> bool {
+        !(self.mouse_x < x
+            || self.mouse_y < y
+            || self.mouse_x >= x + width as i32
+            || self.mouse_y >= y + height as i32)
+    }
+
+    fn button<T>(
+        &mut self,
+        canvas: &mut Canvas<T>,
+        id: i32,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+    ) -> Result<bool, String>
+    where
+        T: RenderTarget,
+    {
+        if self.region_hit(x, y, width, height) {
+            self.hot_item = Some(id);
+            if self.active_item.is_none() && self.mouse_down {
+                self.active_item = Some(id);
+            }
+        }
+
+        canvas.set_draw_color(Color::RGB(0, 0, 0));
+        canvas.fill_rect(Rect::new(x + 8, y + 8, width + 8, height + 8))?;
+
+        if self.hot_item == Some(id) {
+            canvas.set_draw_color(Color::RGB(255, 255, 255));
+            if self.active_item == Some(id) {
+                canvas.fill_rect(Rect::new(x + 2, y + 2, width, height))?;
+            } else {
+                canvas.fill_rect(Rect::new(x, y, width, height))?;
+            }
+        } else {
+            canvas.set_draw_color(Color::RGB(127, 127, 127));
+            canvas.fill_rect(Rect::new(x, y, width, height))?;
+        }
+
+        Ok(self.mouse_down && self.hot_item == Some(id) && self.active_item == Some(id))
+    }
+
+    fn prepare(&mut self) {
+        self.hot_item = None;
+    }
+
+    fn finish(&mut self) {
+        if !self.mouse_down {
+            self.active_item = None;
+        }
+    }
 }
