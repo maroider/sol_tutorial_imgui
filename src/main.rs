@@ -160,7 +160,7 @@ impl UiState {
         }
 
         canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.fill_rect(Rect::new(x + 8, y + 8, width + 8, height + 8))?;
+        canvas.fill_rect(Rect::new(x + 8, y + 8, width, height))?;
 
         if self.hot_item == Some(id) {
             canvas.set_draw_color(Color::RGB(255, 255, 255));
