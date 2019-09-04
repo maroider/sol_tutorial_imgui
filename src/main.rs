@@ -72,6 +72,12 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
+macro_rules! gen_id {
+    ($offset:expr) => {
+        line!() as i32 + $offset
+    };
+}
+
 lazy_static! {
     static ref BACKGROUND_COLOR: Mutex<RefCell<Color>> =
         Mutex::new(RefCell::new(Color::RGB(30, 0, 127)));
@@ -83,17 +89,17 @@ fn render<T: RenderTarget>(canvas: &mut Canvas<T>, state: &mut UiState) -> Resul
 
     state.prepare();
 
-    state.button(canvas, gen_id(), 50, 50, 64, 48)?;
-    state.button(canvas, gen_id(), 150, 50, 64, 48)?;
+    state.button(canvas, gen_id!(0), 50, 50, 64, 48)?;
+    state.button(canvas, gen_id!(0), 150, 50, 64, 48)?;
 
-    if state.button(canvas, gen_id(), 50, 150, 64, 48)? {
+    if state.button(canvas, gen_id!(0), 50, 150, 64, 48)? {
         BACKGROUND_COLOR
             .lock()
             .unwrap()
             .replace(Color::RGB(200, 150, 50));
     }
 
-    if state.button(canvas, gen_id(), 150, 150, 64, 48)? {
+    if state.button(canvas, gen_id!(0), 150, 150, 64, 48)? {
         panic!();
     }
 
@@ -168,14 +174,4 @@ impl UiState {
             self.active_item = None;
         }
     }
-}
-
-fn gen_id() -> i32 {
-    use std::ops::Range;
-
-    lazy_static! {
-        static ref ID_RANGE: Mutex<Range<i32>> = Mutex::new(0..std::i32::MAX);
-    }
-
-    ID_RANGE.lock().unwrap().next().unwrap()
 }
